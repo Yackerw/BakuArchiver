@@ -21,6 +21,10 @@ void UnpackArchive(FILE* f, char* outputFolder) {
     for (int i = 0; i < FCount; ++i) {
         int fileOffs = ReadBEInt32(f);
         int fileSize = ReadBEInt32(f);
+        // not every slot always gets a file!!
+        if (fileOffs == 0) {
+            continue;
+        }
         int nextFile = ftell(f);
         fseek(f, fileOffs, SEEK_SET);
         // allocate the file size so we can read it, then store it to the folder
@@ -46,11 +50,15 @@ void AddToFileLE32(char* fData, int offs, int value) {
 
 void PackArchive(char* inputFolder, char* outputFilePath) {
     std::vector<FILE*> files;
+    std::vector<int> fileInd;
     // get every file in the folder to start
     std::string path = inputFolder;
     for (const auto& entry : fs::directory_iterator(path)) {
         if (entry.is_regular_file()) {
             files.push_back(fopen(entry.path().string().c_str(), "rb"));
+            char fname[128];
+            _splitpath(entry.path().string().c_str(), NULL, NULL, fname, NULL);
+            fileInd.push_back(atoi(fname));
             // err out
             if (files[files.size() - 1] == NULL) {
                 printf("Failed to open file %s", entry.path().string().c_str());
@@ -67,22 +75,35 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
             fileSizes[i] = ftell(files[i]);
             fseek(files[i], 0, SEEK_SET);
             totalFileSize += fileSizes[i];
-            totalFileSize += 8;
         }
     }
+    // set up how many files we need
+    int fileCount = 0;
+    for (int i = 0; i < fileInd.size(); ++i) {
+        fileCount = fileCount > fileInd[i] ? fileCount : fileInd[i];
+    }
+    ++fileCount;
     // now, allocate final file size
-    char* outputFile = (char*)malloc(totalFileSize);
+    char* outputFile = (char*)malloc(totalFileSize + (fileCount * 8));
     // write file count * 2 to start
-    AddToFileLE32(outputFile, 0, files.size() * 2);
-    int fileOffs = 4 + (files.size() * 8);
+    AddToFileLE32(outputFile, 0, fileCount * 2);
+    int fileOffs = 4 + (fileCount * 8);
     // iterate over all the files and write their lengths and offsets
-    for (int i = 0; i < files.size(); ++i) {
-        AddToFileLE32(outputFile, 4 + i * 8, fileOffs);
-        AddToFileLE32(outputFile, 8 + i * 8, fileSizes[i]);
-        fileOffs += fileSizes[i];
+    int i2 = 0;
+    for (int i = 0; i < fileCount; ++i) {
+        if (fileInd[i2] == i) {
+            AddToFileLE32(outputFile, 4 + i * 8, fileOffs);
+            AddToFileLE32(outputFile, 8 + i * 8, fileSizes[i2]);
+            fileOffs += fileSizes[i2];
+            ++i2;
+        }
+        else {
+            AddToFileLE32(outputFile, 4 + i * 8, 0);
+            AddToFileLE32(outputFile, 8 + i * 8, 0);
+        }
     }
     // write the files themselves now
-    int fileWriter = 4 + (files.size() * 8);
+    int fileWriter = 4 + (fileCount * 8);
     for (int i = 0; i < files.size(); ++i) {
         fread(outputFile + fileWriter, fileSizes[i], 1, files[i]);
         fclose(files[i]);

@@ -21,15 +21,19 @@ void UnpackArchive(FILE* f, char* outputFolder) {
     for (int i = 0; i < FCount; ++i) {
         int fileOffs = ReadBEInt32(f);
         int fileSize = ReadBEInt32(f);
-        // not every slot always gets a file!!
+        // not every slot always gets a file!! just create an empty one!!
         if (fileOffs == 0) {
+            char* newFile = (char*)malloc(fileSize);
+            sprintf(outputFile, "%s%2.2i", outputFolder, i);
+            FILE* output = fopen(outputFile, "wb");
+            fclose(output);
             continue;
         }
         int nextFile = ftell(f);
         fseek(f, fileOffs, SEEK_SET);
         // allocate the file size so we can read it, then store it to the folder
         char* newFile = (char*)malloc(fileSize);
-        sprintf(outputFile, "%s%i", outputFolder, i);
+        sprintf(outputFile, "%s%2.2i", outputFolder, i);
         FILE* output = fopen(outputFile, "wb");
         if (output != NULL) {
             // lol silently fail i guess

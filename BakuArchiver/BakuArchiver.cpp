@@ -68,13 +68,18 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
     }
     // iterate over them now...
     int* fileSizes = (int*)malloc(files.size() * 4);
-    int totalFileSize = 4;
+    int totalFileSize = 0;
     for (int i = 0; i < files.size(); ++i) {
         if (files[i] != NULL) {
             fseek(files[i], 0, SEEK_END);
             fileSizes[i] = ftell(files[i]);
             fseek(files[i], 0, SEEK_SET);
             totalFileSize += fileSizes[i];
+            // this is dumb...round up to the next 0x10, then add ANOTHER 0x10
+            if (fileSizes[i] % 0x10 != 0) {
+                totalFileSize += 0x10 - (fileSizes[i] % 0x10);
+            }
+            totalFileSize += 0x10;
         }
     }
     // set up how many files we need
@@ -83,19 +88,31 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
         fileCount = fileCount > fileInd[i] ? fileCount : fileInd[i];
     }
     ++fileCount;
+    // pad to nearest 0x20
+    int fileCountPadding = (fileCount * 8) + 4;
+    fileCountPadding += 0x20 - (fileCountPadding % 0x20);
     // now, allocate final file size
-    char* outputFile = (char*)malloc(totalFileSize + (fileCount * 8));
+    char* outputFile = (char*)calloc(totalFileSize + fileCountPadding, 1);
     // write file count * 2 to start
     AddToFileLE32(outputFile, 0, fileCount * 2);
-    int fileOffs = 4 + (fileCount * 8);
+    int fileOffs = fileCountPadding;
     // iterate over all the files and write their lengths and offsets
     int i2 = 0;
     for (int i = 0; i < fileCount; ++i) {
-        if (fileInd[i2] == i) {
+        if (i2 < fileInd.size() && fileInd[i2] == i) {
             AddToFileLE32(outputFile, 4 + i * 8, fileOffs);
             AddToFileLE32(outputFile, 8 + i * 8, fileSizes[i2]);
             fileOffs += fileSizes[i2];
+            // again, round up to next 0x10 and add another 0x10
+            if (fileSizes[i2] % 0x10 != 0) {
+                fileOffs += 0x10 - (fileSizes[i2] % 0x10);
+            }
+            fileOffs += 0x10;
             ++i2;
+            // skip empty files
+            while (i2 < fileInd.size() && fileSizes[i2] == 0) {
+                ++i2;
+            }
         }
         else {
             AddToFileLE32(outputFile, 4 + i * 8, 0);
@@ -103,11 +120,15 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
         }
     }
     // write the files themselves now
-    int fileWriter = 4 + (fileCount * 8);
+    int fileWriter = fileCountPadding;
     for (int i = 0; i < files.size(); ++i) {
         fread(outputFile + fileWriter, fileSizes[i], 1, files[i]);
         fclose(files[i]);
         fileWriter += fileSizes[i];
+        if (fileSizes[i] % 0x10 != 0) {
+            fileWriter += 0x10 - (fileSizes[i] % 0x10);
+        }
+        fileWriter += 0x10;
     }
     // and finally write the archive file itself
     FILE* archive = fopen(outputFilePath, "wb");

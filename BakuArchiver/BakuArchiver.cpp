@@ -79,11 +79,10 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
             fileSizes[i] = ftell(files[i]);
             fseek(files[i], 0, SEEK_SET);
             totalFileSize += fileSizes[i];
-            // this is dumb...round up to the next 0x10, then add ANOTHER 0x10
-            if (fileSizes[i] % 0x10 != 0) {
-                totalFileSize += 0x10 - (fileSizes[i] % 0x10);
+            // this is dumb...round up to the next 0x20
+            if (fileSizes[i] % 0x20 != 0) {
+                totalFileSize += 0x20 - (fileSizes[i] % 0x20);
             }
-            totalFileSize += 0x10;
         }
     }
     // set up how many files we need
@@ -108,10 +107,9 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
             AddToFileLE32(outputFile, 8 + i * 8, fileSizes[i2]);
             fileOffs += fileSizes[i2];
             // again, round up to next 0x10 and add another 0x10
-            if (fileSizes[i2] % 0x10 != 0) {
-                fileOffs += 0x10 - (fileSizes[i2] % 0x10);
+            if (fileSizes[i2] % 0x20 != 0) {
+                fileOffs += 0x20 - (fileSizes[i2] % 0x20);
             }
-            fileOffs += 0x10;
             ++i2;
             // skip empty files
             while (i2 < fileInd.size() && fileSizes[i2] == 0) {
@@ -129,10 +127,9 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
         fread(outputFile + fileWriter, fileSizes[i], 1, files[i]);
         fclose(files[i]);
         fileWriter += fileSizes[i];
-        if (fileSizes[i] % 0x10 != 0) {
-            fileWriter += 0x10 - (fileSizes[i] % 0x10);
+        if (fileSizes[i] % 0x20 != 0) {
+            fileWriter += 0x20 - (fileSizes[i] % 0x20);
         }
-        fileWriter += 0x10;
     }
     // and finally write the archive file itself
     FILE* archive = fopen(outputFilePath, "wb");

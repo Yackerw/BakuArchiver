@@ -102,7 +102,7 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
     // iterate over all the files and write their lengths and offsets
     int i2 = 0;
     for (int i = 0; i < fileCount; ++i) {
-        if (i2 < fileInd.size() && fileInd[i2] == i) {
+        if (i2 < fileInd.size() && fileInd[i2] == i && fileSizes[i2] != 0) {
             AddToFileLE32(outputFile, 4 + i * 8, fileOffs);
             AddToFileLE32(outputFile, 8 + i * 8, fileSizes[i2]);
             fileOffs += fileSizes[i2];
@@ -119,6 +119,9 @@ void PackArchive(char* inputFolder, char* outputFilePath) {
         else {
             AddToFileLE32(outputFile, 4 + i * 8, 0);
             AddToFileLE32(outputFile, 8 + i * 8, 0);
+            while (i2 < fileInd.size() && fileSizes[i2] == 0) {
+                ++i2;
+            }
         }
     }
     // write the files themselves now
